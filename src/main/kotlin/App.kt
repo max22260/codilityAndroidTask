@@ -10,7 +10,7 @@ class AggregateUserDataUseCase(
     private val fetchSuggestedFriends: suspend (UserId) -> List<FriendEntity>
 ) : Closeable {
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     suspend fun aggregateDataForCurrentUser(): AggregatedData {
         val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable -> throwable.stackTrace }
@@ -21,19 +21,15 @@ class AggregateUserDataUseCase(
 
 
             val comments = async {
-                withContext(Dispatchers.IO) {
-                    withTimeoutOrNull(2000) { fetchUserComments(user.await().id) }
-                }
+                withTimeoutOrNull(2000) { fetchUserComments(user.await().id) } ?: emptyList()
             }
 
             val friends = async {
-                withContext(Dispatchers.IO) {
-                    withTimeoutOrNull(2000) { fetchSuggestedFriends(user.await().id) }
-                }
+                withTimeoutOrNull(2000) { fetchSuggestedFriends(user.await().id) }?: emptyList()
             }
 
             return@async AggregatedData(
-                user.await(), comments.await() ?: emptyList(), friends.await() ?: emptyList()
+                user.await(), comments.await() , friends.await()
             )
         }
 
@@ -69,22 +65,27 @@ data class FriendEntity(val id: String, val name: String)
 
 fun main() {
     val aggregatedData = AggregateUserDataUseCase(suspend {
-        UserEntity("12", "nagy") },
+        UserEntity("12", "nagy")
+    },
 
         { userid: UserId ->
-        delay(2000L)
-        listOf(CommentEntity("1", "nooooooooo"))
-    },
+            delay(1000L)
+            listOf(CommentEntity("1", "nooooooooo"))
+        },
         { userid:
 
-         UserId ->
-        delay(2000L)
-        listOf(FriendEntity("233", "ahmed"))
-    })
+          UserId ->
+            delay(1000)
+            listOf(FriendEntity("233", "ahmed"))
+        })
 
     runBlocking {
         val user = aggregatedData.aggregateDataForCurrentUser()
+        println(aggregatedData.coroutineScope.coroutineContext)
         println(user)
+        aggregatedData.close()
+        println(aggregatedData.coroutineScope.coroutineContext)
+
 
     }
 }
